@@ -1,0 +1,238 @@
+{
+  "info": {
+    "name": "Simple LMS API",
+    "_postman_id": "lms-api-collection-2025",
+    "description": "Koleksi API untuk Simple LMS - Django Ninja + JWT Auth + RBAC\n\n## Cara Penggunaan:\n1. Jalankan **Register** atau **Login**\n2. Copy nilai `access_token` dari response\n3. Di tab Collection, set variable `access_token` dengan nilai tersebut\n4. Semua request protected akan otomatis menggunakan token",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",      "value": "http://localhost:8000/api", "type": "string" },
+    { "key": "access_token",  "value": "", "type": "string" },
+    { "key": "refresh_token", "value": "", "type": "string" },
+    { "key": "course_id",     "value": "1", "type": "string" },
+    { "key": "enrollment_id", "value": "1", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "🔐 Auth",
+      "item": [
+        {
+          "name": "Register User Baru",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 201) {",
+            "  const r = pm.response.json();",
+            "  pm.collectionVariables.set('access_token',  r.access_token);",
+            "  pm.collectionVariables.set('refresh_token', r.refresh_token);",
+            "  pm.test('Register berhasil', () => pm.expect(r.access_token).to.be.a('string'));",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"mahasiswa1\",\n  \"email\": \"mahasiswa1@kampus.id\",\n  \"password\": \"password123\",\n  \"first_name\": \"Budi\",\n  \"last_name\": \"Santoso\",\n  \"role\": \"student\"\n}" },
+            "url": { "raw": "{{base_url}}/auth/register", "host": ["{{base_url}}"], "path": ["auth", "register"] }
+          }
+        },
+        {
+          "name": "Register Instructor",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"dosen1\",\n  \"email\": \"dosen1@kampus.id\",\n  \"password\": \"password123\",\n  \"first_name\": \"Dr. Ahmad\",\n  \"last_name\": \"Wijaya\",\n  \"role\": \"instructor\"\n}" },
+            "url": { "raw": "{{base_url}}/auth/register", "host": ["{{base_url}}"], "path": ["auth", "register"] }
+          }
+        },
+        {
+          "name": "Register Admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"superadmin\",\n  \"email\": \"admin@kampus.id\",\n  \"password\": \"admin123\",\n  \"role\": \"admin\"\n}" },
+            "url": { "raw": "{{base_url}}/auth/register", "host": ["{{base_url}}"], "path": ["auth", "register"] }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200) {",
+            "  const r = pm.response.json();",
+            "  pm.collectionVariables.set('access_token',  r.access_token);",
+            "  pm.collectionVariables.set('refresh_token', r.refresh_token);",
+            "  pm.test('Login berhasil', () => pm.expect(r.access_token).to.be.a('string'));",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"mahasiswa1\",\n  \"password\": \"password123\"\n}" },
+            "url": { "raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200) {",
+            "  const r = pm.response.json();",
+            "  pm.collectionVariables.set('access_token', r.access_token);",
+            "  pm.test('Token diperbarui', () => pm.expect(r.access_token).to.be.a('string'));",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}" },
+            "url": { "raw": "{{base_url}}/auth/refresh", "host": ["{{base_url}}"], "path": ["auth", "refresh"] }
+          }
+        },
+        {
+          "name": "Get Profile (Me)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": { "raw": "{{base_url}}/auth/me", "host": ["{{base_url}}"], "path": ["auth", "me"] }
+          }
+        },
+        {
+          "name": "Update Profile (Me)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"first_name\": \"Budi\",\n  \"last_name\": \"Santoso Updated\",\n  \"bio\": \"Mahasiswa Teknik Informatika semester 5\"\n}" },
+            "url": { "raw": "{{base_url}}/auth/me", "host": ["{{base_url}}"], "path": ["auth", "me"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📚 Courses",
+      "item": [
+        {
+          "name": "List Courses (Public)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/courses", "host": ["{{base_url}}"], "path": ["courses"] }
+          }
+        },
+        {
+          "name": "List Courses (Filter Level)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/courses?level=beginner&page=1&page_size=5",
+              "host": ["{{base_url}}"], "path": ["courses"],
+              "query": [
+                { "key": "level",     "value": "beginner" },
+                { "key": "page",      "value": "1" },
+                { "key": "page_size", "value": "5" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Courses (Search)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/courses?search=pemrograman",
+              "host": ["{{base_url}}"], "path": ["courses"],
+              "query": [{ "key": "search", "value": "pemrograman" }]
+            }
+          }
+        },
+        {
+          "name": "Detail Course",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/courses/{{course_id}}", "host": ["{{base_url}}"], "path": ["courses", "{{course_id}}"] }
+          }
+        },
+        {
+          "name": "Create Course (Instructor)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 201) {",
+            "  const r = pm.response.json();",
+            "  pm.collectionVariables.set('course_id', r.id);",
+            "  pm.test('Course dibuat', () => pm.expect(r.id).to.be.a('number'));",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Pemrograman Web dengan Django\",\n  \"description\": \"Belajar membuat REST API menggunakan Django dan Django Ninja\",\n  \"price\": 150000,\n  \"level\": \"intermediate\",\n  \"is_published\": true\n}" },
+            "url": { "raw": "{{base_url}}/courses", "host": ["{{base_url}}"], "path": ["courses"] }
+          }
+        },
+        {
+          "name": "Update Course (Owner/Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"price\": 200000,\n  \"description\": \"Deskripsi diupdate - Belajar membuat REST API lengkap dengan JWT Auth\"\n}" },
+            "url": { "raw": "{{base_url}}/courses/{{course_id}}", "host": ["{{base_url}}"], "path": ["courses", "{{course_id}}"] }
+          }
+        },
+        {
+          "name": "Delete Course (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": { "raw": "{{base_url}}/courses/{{course_id}}", "host": ["{{base_url}}"], "path": ["courses", "{{course_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🎓 Enrollments",
+      "item": [
+        {
+          "name": "Enroll ke Course (Student)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 201) {",
+            "  const r = pm.response.json();",
+            "  pm.collectionVariables.set('enrollment_id', r.id);",
+            "  pm.test('Enroll berhasil', () => pm.expect(r.id).to.be.a('number'));",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"course_id\": {{course_id}}\n}" },
+            "url": { "raw": "{{base_url}}/enrollments", "host": ["{{base_url}}"], "path": ["enrollments"] }
+          }
+        },
+        {
+          "name": "My Courses (Kursus Saya)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": { "raw": "{{base_url}}/enrollments/my-courses", "host": ["{{base_url}}"], "path": ["enrollments", "my-courses"] }
+          }
+        },
+        {
+          "name": "Mark Lesson Complete",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"content_id\": 1,\n  \"is_complete\": true\n}" },
+            "url": { "raw": "{{base_url}}/enrollments/{{enrollment_id}}/progress", "host": ["{{base_url}}"], "path": ["enrollments", "{{enrollment_id}}", "progress"] }
+          }
+        }
+      ]
+    }
+  ]
+}
