@@ -225,13 +225,13 @@ http://localhost:15672/
 ### Kendala
 
 - Database PostgreSQL tidak langsung memiliki tabel yang dibutuhkan setelah container berhasil dijalankan karena migration Django belum dijalankan di dalam container. Akibatnya beberapa endpoint seperti course, enrollment, dan progress mengalami error karena struktur tabel belum tersedia.
-- File hasil generate certificate dan report tidak muncul pada folder media di host karena container Celery Worker belum memiliki volume mount yang mengarah ke folder media. Akibatnya file hanya tersimpan di dalam container sehingga tidak dapat diakses dari luar container.
+- File hasil generate certificate dan report tidak muncul pada folder dokumentation di host karena container Celery Worker belum memiliki volume mount yang mengarah ke folder documentation. Akibatnya file hanya tersimpan di dalam container sehingga tidak dapat diakses dari luar container.
 - Implementasi Role Based Access Control mengalami kendala karena beberapa endpoint masih dapat diakses oleh role yang tidak sesuai. Hal ini terjadi karena permission pada Django REST Framework belum diterapkan secara konsisten pada setiap view.
 
 ### Solusi
 
 - Menjalankan migration Django secara langsung di dalam container menggunakan perintah docker compose exec app python manage.py migrate, 
-serta melakukan pengecekan menggunakan showmigrations untuk memastikan seluruh tabel berhasil dibuat
+serta melakukan pengecekan menggunakan showmigrations untuk memastikan seluruh tabel berhasil dibuat.
 - Menambahkan volume mount pada service Celery Worker di docker-compose.yml seperti:
 volumes:
   - ./documentation:/app/certificates
