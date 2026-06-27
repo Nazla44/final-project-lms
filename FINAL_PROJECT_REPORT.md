@@ -117,8 +117,9 @@ Pada proses dokumentasi, output saat pertama kali menjalankan migration tidak te
 docker compose exec app python manage.py showmigrations
 ```
 
-![ahowmigrate](/docs/docs-32.png)
+![showmigrate](/docs/docs-32.png)
 
+seluruh migration telah berhasil, Hal ini menunjukkan bahwa seluruh struktur database seperti user, course, lesson, enrollment, dan komponen lainnya sudah berhasil dibuat dan database PostgreSQL telah tersinkronisasi dengan model Django.
 
 ### 6. Seed data 
 
