@@ -155,9 +155,9 @@ class Command(BaseCommand):
         
 
         self.stdout.write(self.style.HTTP_INFO('AKUN DEMO:'))
-        self.stdout.write('  [Admin]      admin / admin123')
-        self.stdout.write('  [Instructor] dosen / dosen123')
-        self.stdout.write('  [Student]    mahasiswa / mahasiswa123')
+        self.stdout.write('  [Admin]      admin / admin')
+        self.stdout.write('  [Instructor] dosen / dosen')
+        self.stdout.write('  [Student]    mahasiswa / mahasiswa')
         self.stdout.write('')
         
         self.stdout.write(self.style.HTTP_INFO('AKSES :'))
@@ -195,7 +195,7 @@ class Command(BaseCommand):
             }
         )
         if created:
-            admin.set_password('admin123')
+            admin.set_password('admin')
             admin.save()
             self.stdout.write('  -> Admin Superuser ada')
         return admin
@@ -225,7 +225,7 @@ class Command(BaseCommand):
                     last_name=lname,
                     email=f'{username}@univ.ac.id',
                     is_staff=False,
-                    password=make_password('dosen123'),
+                    password=make_password('dosen'),
                     date_joined=now_wib,
                     last_login=now_wib,
                 ))
@@ -262,7 +262,7 @@ class Command(BaseCommand):
                     first_name=random.choice(FIRST_NAMES),
                     last_name=random.choice(LAST_NAMES),
                     email=f'{username}@student.univ.ac.id',
-                    password=make_password('mahasiswa123'),
+                    password=make_password('mahasiswa'),
                     date_joined=now_wib,
                     last_login=now_wib,
                 ))

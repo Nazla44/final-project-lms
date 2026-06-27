@@ -111,6 +111,15 @@ docker compose exec app python manage.py migrate
 
 ![migrate](/docs/docs-4.png)
 
+Pada proses dokumentasi, output saat pertama kali menjalankan migration tidak terdokumentasi secara lengkap. Namun setelah dilakukan pengecekan menggunakan perintah:
+
+```bash
+docker compose exec app python manage.py showmigrations
+```
+
+![ahowmigrate](/docs/docs-32.png)
+
+
 ### 6. Seed data 
 
 ```bash
@@ -140,7 +149,7 @@ http://localhost:8000/silk/
 Swagger:
 
 ```text
-http://localhost:8000/api/docs
+http://localhost:8000/api/docs/
 ```
 
 ![swanger](/docs/docs-8.png)
