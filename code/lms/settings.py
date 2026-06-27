@@ -1,19 +1,29 @@
+"""
+Django settings untuk Simple LMS - Lab 05: Optimasi Database
+
+Melanjutkan dari Modul 04 (Django ORM) dengan tambahan:
+- Database PostgreSQL (bukan SQLite)
+- Django Silk untuk query profiling
+- Media files untuk ImageField dan FileField
+"""
+
 from pathlib import Path
 import os
-from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "django-insecure-lab06-redis-mongo-celery-lms-key-2025"
+
+SECRET_KEY = "django-insecure-lab05-db-optimization-simple-lms-key-2025"
+
 
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
 
-# =============================================================================
-# Aplikasi yang terdaftar
-# =============================================================================
+
+# ===== Aplikasi yang terdaftar ===== #
+
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -22,21 +32,18 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "silk",           # Django Silk - query profiling
-    "courses",        # App courses
-    "accounts",       # App accounts - Auth & User Profile
-    "enrollments",    # App enrollments - Pendaftaran kursus
-    "activity_logs",  # App activity logs - MongoDB logging (BARU)
+    "silk",       
+    "courses",    
 ]
 
 
-# =============================================================================
-# Middleware
-# =============================================================================
+
+# ===== Middleware ===== #
+
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "silk.middleware.SilkyMiddleware",
+    "silk.middleware.SilkyMiddleware",  
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -66,9 +73,9 @@ TEMPLATES = [
 WSGI_APPLICATION = "lms.wsgi.application"
 
 
-# =============================================================================
-# Database - PostgreSQL
-# =============================================================================
+
+# ===== Database - PostgreSQL ===== #
+
 
 DATABASES = {
     "default": {
@@ -76,110 +83,23 @@ DATABASES = {
         "NAME": "lms_db",
         "USER": "postgres",
         "PASSWORD": "postgres",
-        "HOST": "database",
+        "HOST": "database",  
         "PORT": "5432",
     }
 }
 
 
-# =============================================================================
-# Redis Cache (BARU)
-# =============================================================================
 
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://redis:6379/0",
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        },
-        "KEY_PREFIX": "lms",
-        "TIMEOUT": 300,  # 5 menit default
-    }
-}
+# =====Django Silk - Konfigurasi Profiling ===== #
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
-
-# Cache timeout spesifik
-CACHE_TTL_COURSE_LIST = 60 * 5      # 5 menit
-CACHE_TTL_COURSE_DETAIL = 60 * 10   # 10 menit
-
-# =============================================================================
-# MongoDB - Activity Logs (BARU)
-# =============================================================================
-
-MONGODB_URL = os.getenv(
-    "MONGODB_URL",
-    os.getenv("MONGO_URL", "mongodb://mongodb:27017/")
-)
-MONGODB_DB = "lms_logs"
-
-# =============================================================================
-# Celery + RabbitMQ
-# =============================================================================
-
-CELERY_BROKER_URL = os.getenv(
-    "CELERY_BROKER_URL",
-    "amqp://guest:guest@rabbitmq:5672//"
-)
-
-CELERY_RESULT_BACKEND = os.getenv(
-    "CELERY_RESULT_BACKEND",
-    "redis://redis:6379/1"
-)
-
-CELERY_ACCEPT_CONTENT = ["json"]
-CELERY_TASK_SERIALIZER = "json"
-CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = "Asia/Jakarta"
-
-CELERY_IMPORTS = (
-    "enrollments.tasks",
-    "courses.tasks",
-)
-
-# =============================================================================
-# Celery Beat - Scheduled Tasks
-# =============================================================================
-
-from celery.schedules import crontab
-
-CELERY_BEAT_SCHEDULE = {
-    "update-course-statistics-daily": {
-        "task": "courses.tasks.update_course_statistics",
-        "schedule": crontab(hour=2, minute=0),
-    },
-}
-
-
-# =============================================================================
-# Rate Limiting (BARU)
-# =============================================================================
-
-RATELIMIT_USE_CACHE = "default"   # Pakai Redis cache
-
-
-# =============================================================================
-# JWT Configuration
-# =============================================================================
-
-JWT_SECRET_KEY                  = SECRET_KEY
-JWT_ALGORITHM                   = "HS256"
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES = 60    # 1 jam
-JWT_REFRESH_TOKEN_EXPIRE_DAYS   = 7     # 7 hari
-
-
-# =============================================================================
-# Django Silk
-# =============================================================================
 
 SILKY_PYTHON_PROFILER = True
-SILKY_META            = True
+SILKY_META = True
 
 
-# =============================================================================
-# Password validation
-# =============================================================================
+
+# ===== Password validation ===== #
+
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -189,22 +109,82 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# =============================================================================
-# Internationalization
-# =============================================================================
+
+# ===== Internationalization ===== #
+
 
 LANGUAGE_CODE = "id"
-TIME_ZONE     = "Asia/Jakarta"
-USE_I18N      = True
-USE_TZ        = True
+TIME_ZONE = "Asia/Jakarta"
+USE_I18N = True
+USE_TZ = True
 
 
-# =============================================================================
-# Static dan Media files
-# =============================================================================
+
+# ===== Static dan Media files ===== #
+
 
 STATIC_URL = "static/"
-MEDIA_URL  = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+
+MEDIA_URL = "/documentation/"
+MEDIA_ROOT =  "/app/documentation"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+
+# ===== REDIS CACHE CONFIGURATION =====#
+
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': f"redis://:{os.environ.get('REDIS_PASSWORD', '1234')}@{os.environ.get('REDIS_HOST', 'redis')}:6379/1",
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        },
+        'KEY_PREFIX': 'simple_lms'
+    }
+}
+
+CACHE_TTL = 60 * 5
+
+
+
+# ===== MONGODB CONFIGURATION ===== #
+
+
+MONGO_HOST = os.environ.get('MONGO_HOST', 'mongodb')
+MONGO_PORT = int(os.environ.get('MONGO_PORT', 27017))
+MONGO_USER = os.environ.get('MONGO_USER', '')      
+MONGO_PASSWORD = os.environ.get('MONGO_PASSWORD', '')  
+MONGO_DB_NAME = 'lms_logs'
+
+
+
+# ===== CELERY CONFIGURATION ==== #
+
+
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'amqp://guest:guest@rabbitmq:5672//')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://redis:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'update-course-stats-every-hour': {
+        'task': 'courses.tasks.update_course_statistics',
+        'schedule': crontab(minute=0, hour='*/1'),
+    },
+}
+
+
+
+# ===== EMAIL CONFIGURATION ===== #
+
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = 'noreply@simplelms.com'
+BASE_URL = 'http://localhost:8000'

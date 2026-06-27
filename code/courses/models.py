@@ -1,84 +1,173 @@
-"""
-Models untuk App Courses
-
-Perubahan dari lab sebelumnya:
-- Course.instructor sekarang menyimpan user instruktur (rename dari teacher)
-- Tambahan field: level, is_published
-- CourseMember tetap ada untuk kompatibilitas
-"""
-
 from django.db import models
 from django.contrib.auth.models import User
 
-
 class Course(models.Model):
-    LEVEL_CHOICES = [
-        ('beginner',     'Pemula'),
-        ('intermediate', 'Menengah'),
-        ('advanced',     'Lanjutan'),
-    ]
+    name = models.CharField("Nama Mata Kuliah", max_length=100, default="Default Course")
+    description = models.TextField("Deskripsi", default='-')
+    price = models.IntegerField("Harga", default=10000)
+    image = models.ImageField("Gambar", null=True, blank=True)
 
-    title       = models.CharField('Judul', max_length=200)
-    description = models.TextField('Deskripsi', default='')
-    price       = models.IntegerField('Harga', default=0)
-    level       = models.CharField('Level', max_length=20, choices=LEVEL_CHOICES, default='beginner')
-    image       = models.ImageField('Gambar', upload_to='courses/', null=True, blank=True)
-    is_published = models.BooleanField('Dipublish', default=True)
-
-    instructor  = models.ForeignKey(
+    teacher = models.ForeignKey(
         User,
-        verbose_name='Instruktur',
-        on_delete=models.RESTRICT,
-        related_name='courses_taught'
+        verbose_name="Pengajar",
+        on_delete=models.RESTRICT
     )
 
-    created_at  = models.DateTimeField(auto_now_add=True)
-    updated_at  = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.title
+        return self.name
 
     class Meta:
-        verbose_name        = 'Mata Kuliah'
-        verbose_name_plural = 'Mata Kuliah'
-        ordering            = ['-created_at']
+        verbose_name = "Mata Kuliah"
+        verbose_name_plural = "Mata Kuliah"
         indexes = [
-            models.Index(fields=['price'],              name='idx_course_price'),
-            models.Index(fields=['instructor', 'price'], name='idx_course_instructor_price'),
-            models.Index(fields=['is_published'],        name='idx_course_published'),
+            models.Index(fields=['price'], name='idx_course_price'),
+            models.Index(fields=['teacher', 'price'], name='idx_course_teacher_price'),
         ]
 
 
-class CourseContent(models.Model):
-    title           = models.CharField('Judul', max_length=200)
-    description     = models.TextField('Deskripsi', default='')
-    video_url       = models.CharField('URL Video', max_length=500, null=True, blank=True)
-    file_attachment = models.FileField('File', null=True, blank=True)
-    order           = models.PositiveIntegerField('Urutan', default=0)
+ROLE_OPTIONS = [
+    ('std', "Siswa"),
+    ('ast', "Asisten"),
+]
 
-    course          = models.ForeignKey(
+
+class CourseMember(models.Model):
+    course_id = models.ForeignKey(
         Course,
-        verbose_name='Kursus',
-        on_delete=models.CASCADE,
-        related_name='contents'
+        verbose_name="matkul",
+        on_delete=models.RESTRICT
+    )
+
+    user_id = models.ForeignKey(
+        User,
+        verbose_name="siswa",
+        on_delete=models.RESTRICT
+    )
+
+    roles = models.CharField(
+        "peran",
+        max_length=3,
+        choices=ROLE_OPTIONS,
+        default='std'
     )
 
     def __str__(self):
-        return f"{self.course.title} - {self.title}"
+        return f"{self.user_id} - {self.course_id} ({self.roles})"
+
+
+class CourseContent(models.Model):
+    name = models.CharField("Judul Course", max_length=200)
+    description = models.TextField("Deskripsi", default='-')
+
+    video_url = models.CharField(
+        'URL Video',
+        max_length=200,
+        null=True,
+        blank=True
+    )
+
+    file_attachment = models.FileField(
+        "File",
+        null=True,
+        blank=True
+    )
+
+    course_id = models.ForeignKey(
+        Course,
+        verbose_name="Mata Kuliah",
+        on_delete=models.RESTRICT
+    )
+
+    parent_id = models.ForeignKey(
+        "self",
+        verbose_name="induk",
+        on_delete=models.RESTRICT,
+        null=True,
+        blank=True
+    )
+
+    def __str__(self):
+        return self.name
+
+
+class Comment(models.Model):
+    content_id = models.ForeignKey(
+        CourseContent,
+        verbose_name="Konten",
+        on_delete=models.CASCADE
+    )
+
+    member_id = models.ForeignKey(
+        CourseMember,
+        verbose_name="Pengguna",
+        on_delete=models.CASCADE
+    )
+
+    comment = models.TextField('Komentar')
+
+    def __str__(self):
+        return f"Komentar oleh {self.member_id} pada {self.content_id}"
+
+
+class CourseContentCompletion(models.Model):
+    member_id = models.ForeignKey(
+        CourseMember,
+        verbose_name="Anggota Kelas",
+        on_delete=models.CASCADE
+    )
+
+    content_id = models.ForeignKey(
+        CourseContent,
+        verbose_name="Konten",
+        on_delete=models.CASCADE
+    )
+
+    completed = models.BooleanField(default=True)
+    completed_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.member_id} selesai {self.content_id}"
 
     class Meta:
-        verbose_name        = 'Konten Kursus'
-        verbose_name_plural = 'Konten Kursus'
-        ordering            = ['order']
+        unique_together = ("member_id", "content_id")
 
 
-ROLE_OPTIONS = [('std', 'Siswa'), ('ast', 'Asisten')]
+class TaskMapping(models.Model):
+    task_id = models.CharField(
+        max_length=255,
+        unique=True,
+        db_index=True
+    )
 
-class CourseMember(models.Model):
-    course_id = models.ForeignKey(Course, on_delete=models.RESTRICT)
-    user_id   = models.ForeignKey(User,   on_delete=models.RESTRICT)
-    roles     = models.CharField(max_length=3, choices=ROLE_OPTIONS, default='std')
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='tasks'
+    )
+
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
+
+    task_type = models.CharField(
+        max_length=50
+    )  
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
 
     class Meta:
-        verbose_name        = 'Anggota Kelas'
-        verbose_name_plural = 'Anggota Kelas'
+        db_table = 'task_mappings'
+        indexes = [
+            models.Index(fields=['task_id', 'user']),
+        ]
+
+    def __str__(self):
+        return f"{self.task_type} - {self.task_id} - {self.user.username}"

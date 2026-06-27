@@ -1,269 +1,404 @@
-"""
-Courses API Endpoints - dengan Redis Caching & Rate Limiting
-
-Public (tanpa auth):
-  GET  /api/courses          - List semua course (cached Redis, rate limited 60/menit)
-  GET  /api/courses/{id}     - Detail satu course (cached Redis)
-
-Protected:
-  POST   /api/courses         - Buat course baru (Instructor/Admin)
-  PATCH  /api/courses/{id}    - Update course (Owner/Admin)
-  DELETE /api/courses/{id}    - Hapus course (Admin only)
-  POST   /api/courses/export-report - Export CSV async (Admin)
-"""
-
-import json
-from django.db.models import Q
-from django.core.cache import cache
-from django.conf import settings
-from ninja import Router
+from typing import Optional
+from django.contrib.auth import authenticate
+from django.contrib.auth.models import User, Group
+from ninja import NinjaAPI
 from ninja.errors import HttpError
+from django.core.cache import cache
+import hashlib
+import json
+from django.utils import timezone
 
-from accounts.auth_bearer import AuthBearer
-from accounts.permissions import is_instructor, is_admin, is_owner_or_admin
-from activity_logs.logger import log_activity
-from .models import Course
-from .schemas import (
-    CourseCreateSchema, CourseUpdateSchema, CourseFilterSchema,
-    CourseOut, CourseListOut, InstructorOut, MessageOut
+# Import Celery untuk task status
+from celery.result import AsyncResult
+
+from courses.models import Course, CourseMember, CourseContent, CourseContentCompletion
+from courses.schemas import *
+from courses.auth import auth, create_token, decode_token
+from courses.permissions import *
+from courses.helpers import get_object_or_404
+
+# Import untuk advanced features
+from lms.throttle import RedisRateThrottle
+from services.logging_service import log_activity, get_user_activities
+from services.analytics_service import record_content_view, get_popular_courses
+from .tasks import send_enrollment_email, generate_certificate, export_course_report, update_course_statistics
+
+api = NinjaAPI(
+    title="Simple LMS API",
+    version="1.0.0",
 )
 
-router = Router(tags=["Courses"])
 
-# ---------------------------------------------------------------------------
-# Cache key helpers
-# ---------------------------------------------------------------------------
+# USER HELPER 
 
-def _cache_key_list(filters) -> str:
-    return f"course_list:{filters.page}:{filters.page_size}:{filters.level}:{filters.min_price}:{filters.max_price}:{filters.search}"
+def user_dict(user):
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "role": get_role(user),
+    }
 
-def _cache_key_detail(course_id: int) -> str:
-    return f"course_detail:{course_id}"
 
+# AUTH 
 
-def _course_to_out(course: Course) -> CourseOut:
-    return CourseOut(
-        id=course.id,
-        title=course.title,
-        description=course.description,
-        price=course.price,
-        level=course.level,
-        is_published=course.is_published,
-        instructor=InstructorOut(
-            id=course.instructor.id,
-            username=course.instructor.username,
-            email=course.instructor.email,
-        ),
-        created_at=course.created_at,
+@api.post("/auth/register", tags=["Authentication"])
+def register(request, data: RegisterIn):
+    if User.objects.filter(username=data.username).exists():
+        raise HttpError(400, "Username used")
+
+    user = User.objects.create_user(
+        username=data.username,
+        email=data.email,
+        password=data.password,
+        first_name=data.first_name,
+        last_name=data.last_name,
     )
 
+    if data.role == "teacher":
+        group_name = "instructor"
+    else:
+        group_name = data.role
+    
+    group, _ = Group.objects.get_or_create(name=group_name)
+    user.groups.add(group)
 
-def _invalidate_course_cache(course_id: int = None):
-    """Hapus cache course list dan detail spesifik saat ada perubahan data."""
-    cache.delete_pattern("lms:course_list:*")
-    if course_id:
-        cache.delete(f"lms:course_detail:{course_id}")
-
-
-# ---------------------------------------------------------------------------
-# GET /api/courses  (Public, Cached, Rate Limited)
-# ---------------------------------------------------------------------------
-
-def _check_rate_limit(request) -> bool:
-    """Simple rate limiter: 60 request/menit per IP menggunakan Redis."""
-    ip  = request.META.get("REMOTE_ADDR", "unknown")
-    key = f"rate_limit:courses_list:{ip}"
-    count = cache.get(key, 0)
-    if count >= 60:
-        return False
-    cache.set(key, count + 1, timeout=60)
-    return True
+    return user_dict(user)
 
 
-@router.get("", response=CourseListOut)
-def list_courses(request, filters: CourseFilterSchema = CourseFilterSchema()):
-    """
-    List semua course yang sudah dipublish.
-    - Hasil di-cache Redis selama 5 menit.
-    - Rate limit: 60 request/menit per IP.
-    """
-    # Rate limiting
-    if not _check_rate_limit(request):
-        raise HttpError(429, "Terlalu banyak request. Coba lagi dalam 1 menit.")
+@api.post("/auth/login", tags=["Authentication"])
+def login(request, data: LoginIn):
+    user = authenticate(username=data.username, password=data.password)
 
-    # Cek cache
-    cache_key = _cache_key_list(filters)
+    if not user:
+        raise HttpError(401, "Login gagal")
+
+    return {
+        "access": create_token(user),
+        "refresh": create_token(user, "refresh"),
+    }
+
+
+@api.post("/auth/refresh", tags=["Authentication"])
+def refresh_token(request, data: RefreshIn):
+    payload = decode_token(data.refresh)
+    user = get_object_or_404(User, id=payload["user_id"])
+
+    return {
+        "access": create_token(user),
+        "refresh": create_token(user, "refresh"),
+    }
+
+
+@api.get("/auth/me", auth=auth, tags=["Authentication"])
+def me(request):
+    return user_dict(request.auth)
+
+
+@api.put("/auth/me", auth=auth, tags=["Authentication"])
+def update_me(request, data: ProfileUpdateIn):
+    user = request.auth
+
+    if data.first_name is not None:
+        user.first_name = data.first_name
+    if data.last_name is not None:
+        user.last_name = data.last_name
+    if data.email is not None:
+        user.email = data.email
+
+    user.save()
+    return user_dict(user)
+
+
+# COURSES 
+
+@api.get("/courses", tags=["Courses"])
+def list_courses(request, search: Optional[str] = None):
+    qs = Course.objects.all()
+
+    if search:
+        qs = qs.filter(name__icontains=search)
+
+    return {
+        "count": qs.count(),
+        "results": [CourseOut.from_orm(c) for c in qs],
+    }
+
+
+@api.get("/courses/{id}", tags=["Courses"])
+def detail_course(request, id: int):
+    course = get_object_or_404(Course, id=id)
+    return CourseOut.from_orm(course)
+
+
+@api.post("/courses", auth=auth, tags=["Courses"])
+def create_course(request, data: CourseIn):
+    is_instructor(request.auth)
+
+    course = Course.objects.create(
+        name=data.name,
+        description=data.description,
+        price=data.price,
+        teacher=request.auth,
+    )
+    return CourseOut.from_orm(course)
+
+
+@api.patch("/courses/{id}", auth=auth, tags=["Courses"])
+def update_course(request, id: int, data: CoursePatchIn):
+    course = get_object_or_404(Course, id=id)
+    is_course_owner(request.auth, course)
+
+    if data.name:
+        course.name = data.name
+    if data.description:
+        course.description = data.description
+    if data.price:
+        course.price = data.price
+
+    course.save()
+    return CourseOut.from_orm(course)
+
+
+@api.delete("/courses/{id}", auth=auth, tags=["Courses"])
+def delete_course(request, id: int):
+    is_admin(request.auth)
+
+    course = get_object_or_404(Course, id=id)
+    course.delete()
+
+    return {"success": True}
+
+
+@api.get("/courses/{id}/contents", tags=["Courses"])
+def list_course_contents(request, id: int):
+    """List semua content dari suatu course"""
+    from courses.models import CourseContent
+    course = get_object_or_404(Course, id=id)
+    contents = CourseContent.objects.filter(course_id=course)
+    return [
+        {
+            "id": c.id,
+            "name": c.name,
+            "description": c.description
+        }
+        for c in contents
+    ]
+
+
+@api.get("/courses-cached", tags=["Courses"])
+def list_courses_cached(request, search: Optional[str] = None):
+    cache_key = f"courses:list:{hashlib.md5((search or '').encode()).hexdigest()}"
     cached = cache.get(cache_key)
+    
     if cached:
         return cached
-
-    # Query database
-    qs = Course.objects.select_related("instructor").filter(is_published=True)
-
-    if filters.level:
-        qs = qs.filter(level=filters.level)
-    if filters.min_price is not None:
-        qs = qs.filter(price__gte=filters.min_price)
-    if filters.max_price is not None:
-        qs = qs.filter(price__lte=filters.max_price)
-    if filters.search:
-        qs = qs.filter(title__icontains=filters.search)
-
-    total  = qs.count()
-    offset = (filters.page - 1) * filters.page_size
-    qs     = qs[offset: offset + filters.page_size]
-
-    result = CourseListOut(
-        total=total,
-        page=filters.page,
-        per_page=filters.page_size,
-        results=[_course_to_out(c) for c in qs],
-    )
-
-    # Simpan ke cache
-    cache.set(cache_key, result, timeout=settings.CACHE_TTL_COURSE_LIST)
+    
+    qs = Course.objects.all()
+    if search:
+        qs = qs.filter(name__icontains=search)
+    
+    result = {
+        "count": qs.count(),
+        "results": [CourseOut.from_orm(c) for c in qs],
+    }
+    
+    cache.set(cache_key, result, 300)
+    
+    user_id = request.auth.id if hasattr(request, 'auth') and request.auth else None
+    log_activity(user_id, 'list_cached', 'course', None)
+    
     return result
 
 
-# ---------------------------------------------------------------------------
-# GET /api/courses/{id}  (Public, Cached)
-# ---------------------------------------------------------------------------
+# ENROLLMENTS 
 
-@router.get("/{course_id}", response={200: CourseOut, 404: MessageOut})
-def get_course(request, course_id: int):
-    """Detail satu course. Hasil di-cache Redis selama 10 menit."""
-    cache_key = _cache_key_detail(course_id)
-    cached = cache.get(cache_key)
-    if cached:
-        return 200, cached
+@api.post("/enrollments", auth=auth, tags=["Enrollments"])
+def enroll(request, data: EnrollmentIn):
+    is_student(request.auth)
 
-    try:
-        course = Course.objects.select_related("instructor").get(id=course_id)
-    except Course.DoesNotExist:
-        return 404, {"message": "Course tidak ditemukan"}
+    course = get_object_or_404(Course, id=data.course_id)
 
-    result = _course_to_out(course)
-    cache.set(cache_key, result, timeout=settings.CACHE_TTL_COURSE_DETAIL)
+    if CourseMember.objects.filter(course_id=course, user_id=request.auth).exists():
+        raise HttpError(400, "Sudah enroll")
 
-    # Log activity ke MongoDB
-    if hasattr(request, "user") and request.user.is_authenticated:
-        log_activity(
-            user_id=request.user.id,
-            username=request.user.username,
-            action="view_course",
-            resource="course",
-            resource_id=course_id,
-        )
-
-    return 200, result
-
-
-# ---------------------------------------------------------------------------
-# POST /api/courses  (Instructor / Admin)
-# ---------------------------------------------------------------------------
-
-@router.post("", response={201: CourseOut, 403: MessageOut}, auth=AuthBearer())
-@is_instructor
-def create_course(request, data: CourseCreateSchema):
-    """Buat course baru. Hanya Instructor dan Admin yang bisa."""
-    course = Course.objects.create(
-        title=data.title,
-        description=data.description,
-        price=data.price,
-        level=data.level,
-        is_published=data.is_published,
-        instructor=request.user,
+    member = CourseMember.objects.create(
+        course_id=course,
+        user_id=request.auth,
+        roles="std",
     )
-    _invalidate_course_cache()
 
+    return CourseMemberOut.from_orm(member)
+
+
+@api.get("/enrollments/my-courses", auth=auth, tags=["Enrollments"])
+def my_courses(request):
+    members = CourseMember.objects.filter(user_id=request.auth)
+    return [CourseMemberOut.from_orm(m) for m in members]
+
+
+@api.post("/enrollments/{id}/progress", auth=auth, tags=["Enrollments"])
+def progress(request, id: int, data: ProgressIn):
+    member = get_object_or_404(CourseMember, id=id)
+    content = get_object_or_404(CourseContent, id=data.content_id)
+
+    completion = CourseContentCompletion.objects.create(
+        member_id=member,
+        content_id=content,
+    )
+    return CourseContentCompletionOut.from_orm(completion)
+
+
+# ASYNC TASKS 
+
+@api.post("/enrollments-async", auth=auth, tags=["Async Tasks"])
+def enroll_async(request, data: EnrollmentIn):
+    is_student(request.auth)
+    
+    course = get_object_or_404(Course, id=data.course_id)
+    
+    if CourseMember.objects.filter(course_id=course, user_id=request.auth).exists():
+        raise HttpError(400, "Sudah enroll")
+    
+    member = CourseMember.objects.create(
+        course_id=course,
+        user_id=request.auth,
+        roles="std",
+    )
+    
+    task = send_enrollment_email.delay(
+        request.auth.id,
+        course.id,
+        request.auth.email,
+        request.auth.username,
+        course.name
+    )
+    
     log_activity(
-        user_id=request.user.id,
-        username=request.user.username,
-        action="create_course",
-        resource="course",
-        resource_id=course.id,
-        extra={"title": course.title},
+        request.auth.id,
+        'enroll_async',
+        'course',
+        course.id,
+        {'course_name': course.name}
     )
+    
+    return {
+        "message": "Enrolled successfully! Check your email for confirmation.",
+        "enrollment": CourseMemberOut.from_orm(member),
+        "task_id": task.id
+    }
 
-    return 201, _course_to_out(course)
 
-
-# ---------------------------------------------------------------------------
-# PATCH /api/courses/{id}  (Owner / Admin)
-# ---------------------------------------------------------------------------
-
-@router.patch("/{course_id}", response={200: CourseOut, 403: MessageOut, 404: MessageOut}, auth=AuthBearer())
-def update_course(request, course_id: int, data: CourseUpdateSchema):
-    """Update course. Hanya pemilik course (instructor) atau Admin yang bisa."""
-    try:
-        course = Course.objects.select_related("instructor").get(id=course_id)
-    except Course.DoesNotExist:
-        return 404, {"message": "Course tidak ditemukan"}
-
-    if not is_owner_or_admin(request.user, course.instructor_id):
-        return 403, {"message": "Kamu bukan pemilik course ini"}
-
-    if data.title        is not None: course.title        = data.title
-    if data.description  is not None: course.description  = data.description
-    if data.price        is not None: course.price        = data.price
-    if data.level        is not None: course.level        = data.level
-    if data.is_published is not None: course.is_published = data.is_published
-    course.save()
-
-    _invalidate_course_cache(course_id)
-
+@api.post("/courses/{id}/complete-async", auth=auth, tags=["Async Tasks"])
+def complete_course_async(request, id: int):
+    course = get_object_or_404(Course, id=id)
+    
+    is_member = CourseMember.objects.filter(course_id=course, user_id=request.auth).exists()
+    if not is_member:
+        raise HttpError(403, "Not enrolled in this course")
+    
+    task = generate_certificate.delay(
+        request.auth.id,
+        course.id,
+        request.auth.username,
+        course.name
+    )
+    
+    record_content_view(request.auth.id, course.id)
+    
     log_activity(
-        user_id=request.user.id,
-        username=request.user.username,
-        action="update_course",
-        resource="course",
-        resource_id=course_id,
+        request.auth.id,
+        'complete_course',
+        'course',
+        course.id,
+        {'course_name': course.name}
     )
+    
+    return {
+        "message": "Course completed! Certificate is being generated.",
+        "task_id": task.id
+    }
 
-    return 200, _course_to_out(course)
+
+@api.post("/courses/{id}/export-async", auth=auth, tags=["Async Tasks"])
+def export_report_async(request, id: int):
+    course = get_object_or_404(Course, id=id)
+    
+    if not (is_admin_user(request.auth) or is_course_owner(request.auth, course)):
+        raise HttpError(403, "Only course teacher or admin can export reports")
+    
+    task = export_course_report.delay(course.id, request.auth.email, course.name)
+    
+    return {
+        "message": "Report is being generated. You will receive an email when ready.",
+        "task_id": task.id
+    }
 
 
-# ---------------------------------------------------------------------------
-# DELETE /api/courses/{id}  (Admin only)
-# ---------------------------------------------------------------------------
+@api.post("/admin/update-stats", auth=auth, tags=["Async Tasks"])
+def trigger_stats(request):
+    is_admin(request.auth)
+    update_course_statistics.delay()
+    return {"message": "Statistics update task has been queued."}
 
-@router.delete("/{course_id}", response={200: MessageOut, 403: MessageOut, 404: MessageOut}, auth=AuthBearer())
-@is_admin
-def delete_course(request, course_id: int):
-    """Hapus course. Hanya Admin yang bisa."""
+
+@api.get("/tasks/{task_id}", tags=["Async Tasks"])
+def get_task_status(request, task_id: str):
     try:
-        course = Course.objects.get(id=course_id)
-    except Course.DoesNotExist:
-        return 404, {"message": "Course tidak ditemukan"}
+        task = AsyncResult(task_id)
+        
+        status_messages = {
+            "PENDING": "Task is waiting to be processed",
+            "STARTED": "Task is currently running",
+            "SUCCESS": "Task completed successfully",
+            "FAILURE": "Task failed",
+            "RETRY": "Task will be retried",
+        }
+        
+        response = {
+            "task_id": task_id,
+            "status": task.status,
+            "status_message": status_messages.get(task.status, "Unknown status"),
+            "ready": task.ready(),
+            "successful": task.successful() if task.ready() else None,
+        }
+        
+        if task.ready():
+            if task.successful():
+                response["result"] = task.result
+                response["message"] = "Task completed successfully."
+            else:
+                response["error"] = str(task.info)
+                response["message"] = "Task failed. Please check logs."
+        else:
+            if task.status == "PENDING":
+                response["message"] = "Task is in queue. Please wait."
+            elif task.status == "STARTED":
+                response["message"] = "Task is currently running."
+        
+        if hasattr(task, 'date_done') and task.date_done:
+            response["completed_at"] = task.date_done.isoformat()
+        
+        return response
+        
+    except Exception as e:
+        raise HttpError(404, f"Task not found: {str(e)}")
 
-    title = course.title
-    course.delete()
-    _invalidate_course_cache(course_id)
 
-    log_activity(
-        user_id=request.user.id,
-        username=request.user.username,
-        action="delete_course",
-        resource="course",
-        resource_id=course_id,
-        extra={"title": title},
-    )
+# ANALYTICS 
 
-    return 200, {"message": f"Course '{title}' berhasil dihapus"}
+@api.get("/analytics/popular-courses", tags=["Analytics"])
+def popular_courses(request, limit: int = 5):
+    popular = get_popular_courses(limit)
+    return {"popular_courses": popular}
 
 
-# ---------------------------------------------------------------------------
-# POST /api/courses/export-report  (Admin - Async via Celery)
-# ---------------------------------------------------------------------------
-
-@router.post("/export-report", response={202: MessageOut, 403: MessageOut}, auth=AuthBearer())
-@is_admin
-def export_report(request):
-    """
-    Trigger export CSV semua courses secara async (Celery).
-    Hasilnya bisa dilihat di Flower dashboard.
-    """
-    from courses.tasks import export_course_report
-    task = export_course_report.delay()
-
-    return 202, {"message": f"Export sedang diproses. Task ID: {task.id}"}
+@api.get("/analytics/my-activities", auth=auth, tags=["Analytics"])
+def my_activities(request, limit: int = 20):
+    activities = get_user_activities(request.auth.id, limit)
+    for act in activities:
+        act['_id'] = str(act['_id'])
+        act['timestamp'] = act['timestamp'].isoformat()
+    return {"activities": activities}

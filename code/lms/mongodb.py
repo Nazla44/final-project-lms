@@ -1,27 +1,28 @@
 from pymongo import MongoClient
 from django.conf import settings
+import logging
 
-_client = None
+logger = logging.getLogger(__name__)
 
+class MongoDBClient:
+    _instance = None
 
-def get_mongo_client() -> MongoClient:
-    """Singleton MongoDB client."""
-    global _client
-    if _client is None:
-        _client = MongoClient(settings.MONGODB_URL)
-    return _client
+    def __new__(cls):
+        if cls._instance is None:
+            mongo_uri = f"mongodb://{settings.MONGO_HOST}:{settings.MONGO_PORT}/"
+            cls._instance = MongoClient(mongo_uri)
+            cls.db = cls._instance[settings.MONGO_DB_NAME]
+            logger.info("Konek ke MongoDB")
+        return cls._instance
 
+    @classmethod
+    def get_db(cls):
+        if cls._instance is None:
+            cls()
+        return cls.db
 
-def get_db():
-    """Kembalikan database LMS logs."""
-    return get_mongo_client()[settings.MONGODB_DB]
+def get_activity_collection():
+    return MongoDBClient.get_db()['activity_logs']
 
-
-def get_activity_logs_collection():
-    """Collection untuk activity logs."""
-    return get_db()["activity_logs"]
-
-
-def get_learning_analytics_collection():
-    """Collection untuk learning analytics."""
-    return get_db()["learning_analytics"]
+def get_analytics_collection():
+    return MongoDBClient.get_db()['learning_analytics']
