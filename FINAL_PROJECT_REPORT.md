@@ -163,35 +163,9 @@ http://localhost:15672/
 
 ---
 
-<<<<<<< HEAD
 ## Akun Demo dan Endpoint Penting
 
 ![Akun Demo](/docs/docs-31.png)
-=======
-## Akun Demo
-  [Admin]      admin / admin123
-  [Instructor] dosen / dosen123
-  [Student]    mahasiswa / mahasiswa123
----
-
-## Endpoint Penting
-AKSES :
-  Swagger API    : http://localhost:8000/api/docs/
-  Django Admin   : http://localhost:8000/admin/
-  Silk Profiling : http://localhost:8000/silk/
-  Flower Monitor : http://localhost:5555
-  RabbitMQ       : http://localhost:15672 
-
- Async Processing & Notification:
-  Enroll Async    : POST /api/enrollments-async
-  Complete Course : POST /api/courses/{id}/complete-async
-  Export Report   : POST /api/courses/{id}/export-async
-  Update Stats    : POST /api/admin/update-stats
-  Task Status     : GET  /api/tasks/{task_id}
-  
->>>>>>> 1917a1e5dd11b4e0034885d806d23965e0bc09ca
-
----
 
 ## Screenshot / Bukti Pengujian
 
@@ -207,7 +181,7 @@ AKSES :
 ![Dosen - Enroll Async ](/docs/docs-15.png)
 ![Cek di Celery Berhasil](/docs/docs-16.png)
 ![Log Email Terkirim](/docs/docs-17.png)
-```
+
 ### Generate certificate/report async
 
 ![Complete Course Mahasiswa (Generate Certificate)](/docs/docs-18.png)
