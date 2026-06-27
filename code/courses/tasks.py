@@ -50,57 +50,46 @@ def generate_certificate(user_id, course_id, user_name, course_name):
         filename = f"certificate_{user_id}_{course_id}_{int(timezone.now().timestamp())}.pdf"
         filepath = os.path.join(cert_dir, filename)
 
-        # Landscape A4
         c = canvas.Canvas(filepath, pagesize=landscape(A4))
         width, height = landscape(A4)
 
-        # Background color
         c.setFillColorRGB(0.98, 0.95, 0.9)
         c.rect(0, 0, width, height, fill=1)
 
-        # Border emas
         c.setStrokeColorRGB(0.8, 0.6, 0.2)
         c.setLineWidth(3)
         c.rect(50, 50, width-100, height-100)
         
-        # Border dalam emas tipis
         c.setStrokeColorRGB(0.8, 0.6, 0.2)
         c.setLineWidth(1)
         c.rect(60, 60, width-120, height-120)
 
-        # Title dengan shadow effect
         c.setFont("Helvetica-Bold", 36)
         c.setFillColorRGB(0.7, 0.5, 0.1)
         c.drawCentredString(width/2 + 2, height-100, "CERTIFICATE OF COMPLETION")
         c.setFillColorRGB(0.5, 0.3, 0.1)
         c.drawCentredString(width/2, height-98, "CERTIFICATE OF COMPLETION")
 
-        # Subtitle
         c.setFont("Helvetica", 16)
         c.setFillColorRGB(0.3, 0.3, 0.3)
         c.drawCentredString(width/2, height-160, "This certificate is proudly presented to")
 
-        # Nama User (lebih besar & warna biru)
         c.setFont("Helvetica-Bold", 32)
         c.setFillColorRGB(0.1, 0.3, 0.6)
         c.drawCentredString(width/2, height-240, user_name)
 
-        # Teks
         c.setFont("Helvetica", 16)
         c.setFillColorRGB(0.2, 0.2, 0.2)
         c.drawCentredString(width/2, height-310, "for successfully completing the course")
 
-        # Nama Course (lebih besar)
         c.setFont("Helvetica-Bold", 24)
         c.setFillColorRGB(0.5, 0.3, 0.1)
         c.drawCentredString(width/2, height-380, course_name)
 
-        # Tanggal
         c.setFont("Helvetica", 12)
         c.setFillColorRGB(0.4, 0.4, 0.4)
         c.drawCentredString(width/2, height-480, f"Date: {timezone.now().strftime('%d %B %Y')}")
 
-        # Footer
         c.setFont("Helvetica", 10)
         c.setFillColorRGB(0.5, 0.5, 0.5)
         c.drawCentredString(width/2, height-540, "This certificate is valid and issued by the Learning Management System")

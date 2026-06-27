@@ -72,8 +72,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "lms.wsgi.application"
 
-
-
 # ===== Database - PostgreSQL ===== #
 
 
@@ -88,15 +86,10 @@ DATABASES = {
     }
 }
 
-
-
 # =====Django Silk - Konfigurasi Profiling ===== #
-
 
 SILKY_PYTHON_PROFILER = True
 SILKY_META = True
-
-
 
 # ===== Password validation ===== #
 
@@ -108,8 +101,6 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-
-
 # ===== Internationalization ===== #
 
 
@@ -117,8 +108,6 @@ LANGUAGE_CODE = "id"
 TIME_ZONE = "Asia/Jakarta"
 USE_I18N = True
 USE_TZ = True
-
-
 
 # ===== Static dan Media files ===== #
 
@@ -130,10 +119,7 @@ MEDIA_ROOT =  "/app/documentation"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-
-
 # ===== REDIS CACHE CONFIGURATION =====#
-
 
 CACHES = {
     'default': {
@@ -152,17 +138,13 @@ CACHE_TTL = 60 * 5
 
 # ===== MONGODB CONFIGURATION ===== #
 
-
 MONGO_HOST = os.environ.get('MONGO_HOST', 'mongodb')
 MONGO_PORT = int(os.environ.get('MONGO_PORT', 27017))
 MONGO_USER = os.environ.get('MONGO_USER', '')      
 MONGO_PASSWORD = os.environ.get('MONGO_PASSWORD', '')  
 MONGO_DB_NAME = 'lms_logs'
 
-
-
 # ===== CELERY CONFIGURATION ==== #
-
 
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'amqp://guest:guest@rabbitmq:5672//')
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://redis:6379/0')
@@ -179,8 +161,6 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(minute=0, hour='*/1'),
     },
 }
-
-
 
 # ===== EMAIL CONFIGURATION ===== #
 
