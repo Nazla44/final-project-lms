@@ -5,7 +5,7 @@
 - **Nama:** Nazla Lutfia Ramadhani
 - **NIM:** A11.2023.15259
 - **Kelas:** A11.4618
-- **Repository:** 
+- **Repository:** https://github.com/Nazla44/final-project-lms.git
 
 ---
 
@@ -77,19 +77,10 @@ Implementasi Celery, RabbitMQ, dan Async Processing membuat sistem LMS mampu men
 ### 1. Clone Repository
 
 ```bash
-git clone 
+git clone https://github.com/Nazla44/final-project-lms.git
 ```
 
 ### 2. Jalankan Docker Compose
-
-```bash
-docker compose up --build
-```
-
-![docker compose up -d](/docs/image.png)
-
-(Membangun ulang image sebelum menjalankan container, semisal kita ngambil clone git dari sini jika sudah pernah atau sudah ada tinggal langsung jalankan)
-
 ```bash
  docker compose up -d
 ```
@@ -144,7 +135,7 @@ Django Silk
 http://localhost:8000/silk/
 ```
 
-![silk](/docs/image-7.png)
+![silk](/docs/docs-7.png)
 
 Swagger:
 
@@ -160,7 +151,7 @@ Flower :
 http://localhost:5555/
 ```
 
-![flower](/docs/image-9.png)
+![flower](/docs/docs-9.png)
 
 Rabbit MQ :
 
@@ -168,20 +159,17 @@ Rabbit MQ :
 http://localhost:15672/
 ```
 
-![rabbitmq](/docs/image-10.png)
+![rabbitmq](/docs/docs-10.png)
 
 ---
 
 ## Akun Demo
-```
   [Admin]      admin / admin123
   [Instructor] dosen / dosen123
   [Student]    mahasiswa / mahasiswa123
-```
 ---
 
 ## Endpoint Penting
-```
 AKSES :
   Swagger API    : http://localhost:8000/api/docs/
   Django Admin   : http://localhost:8000/admin/
@@ -195,27 +183,27 @@ AKSES :
   Export Report   : POST /api/courses/{id}/export-async
   Update Stats    : POST /api/admin/update-stats
   Task Status     : GET  /api/tasks/{task_id}
-```
+  
 
 ---
 
 ## Screenshot / Bukti Pengujian
 
 ### Login API
-```
+
 ![Login Admin](/docs/docs-13.png)
 ![Login Mahasiswa](/docs/docs-11.png)
 ![Login Dosen](/docs/docs-12.png)
-```
+
 ### Email notification async
-```
+
 ![Mahasiswa - Enroll Async](/docs/docs-14.png)
 ![Dosen - Enroll Async ](/docs/docs-15.png)
 ![Cek di Celery Berhasil](/docs/docs-16.png)
 ![Log Email Terkirim](/docs/docs-17.png)
 ```
 ### Generate certificate/report async
-```
+
 ![Complete Course Mahasiswa (Generate Certificate)](/docs/docs-18.png)
 ![Cek Certificate di Celery Berhasil](/docs/docs-20.png)
 ![Cek File Certificate](/docs/docs-21.png)
@@ -223,25 +211,25 @@ AKSES :
 ![Export Complete](/docs/docs-22.png)
 ![Cek Exporty di Celery Berhasil](/docs/docs-23.png)
 ![Cek File report](/docs/docs-24.png)
-```
+
 ### Scheduled task
-```
+
 ![Log Celery Beat Berjalan](/docs/docs-25.png)
 ![Cek di Flower (Task SUCCESS)](/docs/docs-26.png)
 ![Detail Statistics](/docs/docs-27.png)
-```
+
 ### TASK STATUS ENDPOINT
-```
+
 ![Task Status Response](/docs/docs-28.png)
-```
+
 ### Flower monitoring
-```
+
 ![Flower Monitoring](/docs/docs-29.png)
-```
+
 ### Rabbit MQ
-```
+
 ![RabbitMQ Berjalan](/docs/docs-30.png)
-```
+
 ## Kendala dan Solusi
 
 ### Kendala
